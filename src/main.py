@@ -3,9 +3,11 @@
     Desc: Main daemon entry. 
 """
 import dotenv
+import spotify
 import sys
 
 from log import AppLogger
+from spotify import SpotifyHandler
 
 # Main application entry point.
 if __name__ == "__main__":
