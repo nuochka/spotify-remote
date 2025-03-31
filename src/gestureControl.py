@@ -2,15 +2,24 @@ import cv2
 import mediapipe as mp
 import numpy as np
 import time
+from enum import Enum
+from log import AppLogger
 
 mp_hands = mp.solutions.hands
 mp_draw = mp.solutions.drawing_utils
+
+class GestureAction(Enum):
+    NEXT_TRACK = "next track"
+    PREV_TRACK = "prev track"
+    PLAY_PAUSE = "play/pause"
+    NONE = "none"
 
 class GestureControl:
     def __init__(self, cooldown=2):
         self.hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
         self.last_action_time = 0
         self.cooldown = cooldown
+        self.current_state = GestureAction.NONE
 
     def count_fingers(self, hand_landmarks):
         finger_tips = [4, 8, 12, 16, 20]
@@ -29,10 +38,19 @@ class GestureControl:
                 current_time = time.time()
                 if current_time - self.last_action_time > self.cooldown:
                     if fingers == 1:
-                        print("next track")
+                        self.current_state = GestureAction.NEXT_TRACK
+                        AppLogger.info("Gesture detected: NEXT_TRACK")
                     elif fingers == 2:
-                        print("prev track")
+                        self.current_state = GestureAction.PREV_TRACK
+                        AppLogger.info("Gesture detected: PREV_TRACK")
                     elif fingers == 5:
-                        print("play/pause")
-                    self.last_action_time = current_time
+                        self.current_state = GestureAction.PLAY_PAUSE
+                        AppLogger.info("Gesture detected: PLAY_PAUSE")
+                    else:
+                        self.last_action_time = current_time
+                        AppLogger.debug("No valid gesture detected.")
         return frame
+    
+    def current_state(self):
+        AppLogger.debug("Current state requested: %s", self.current_state.value)
+        return self.current_state
