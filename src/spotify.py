@@ -39,6 +39,10 @@ class SpotifyHandler:
             daemon=True, 
         ).start()
 
+        user = self.sp.current_user()
+        if user:
+            AppLogger.info(f"Initialized spotify handler for {user['display_name']}")
+
     def new(self) -> None:
         self.oauth = SpotifyOAuth(
             client_id = self.CLIENT_ID,
@@ -73,8 +77,14 @@ class SpotifyHandler:
         Performs a spotify web API action with additional error handling.
     """
     def perform(self, f: SpotifyPerformer):
+        self.current = self.sp.current_playback()
+
         try:
             f_src = inspect.getsource(f).strip()
+            if self.current:
+                AppLogger.info("Current track: {}, playing: {}", self.current['item']['name'], self.current['is_playing'])
+            else:
+                AppLogger.error("Unable to retrieve currently selected track.")
         except Exception:
             f_src = f.__str__
 
