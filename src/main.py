@@ -3,39 +3,67 @@
     Desc: Main daemon entry. 
 """
 import dotenv
-import spotify
+import time
 import sys
+import os 
 
 import cv2
-from gestureControl import GestureControl
+import spotify
 
 from log import AppLogger
 from spotify import SpotifyHandler
+from gestureControl import GestureControl, GestureAction 
+
+CAM_TIMEOUT     = os.getenv("SPOTIFY_REMOTE_CAMERA_TIMEOUT", default="15")
+DBG_MODE        = os.getenv("SPOTIFY_REMOTE_DEBUG", default="True")
 
 # Main application entry point.
 if __name__ == "__main__":
     AppLogger.debug("Initializing main application.")
 
+    # Spotify API related values must always be properly loaded. 
     if not dotenv.load_dotenv(verbose=True):
-        AppLogger.error("UNRECOVERABLE: Unable to access environmental variables. Exiting...")
+        AppLogger.fatal("UNRECOVERABLE: Unable to access environmental variables. Exiting...")
         sys.exit(1)
 
-    cap = cv2.VideoCapture(0)
-    gesture_control = GestureControl()
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
-        frame = cv2.flip(frame, 1)
-        frame = gesture_control.process_frame(frame)
-        
-        cv2.imshow('Gesture Control', frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+    spot = SpotifyHandler()
 
-    cap.release()
-    cv2.destroyAllWindows()
+    try:
+        while True:
+            cap = cv2.VideoCapture(0)
 
-    AppLogger.debug("Succesfully initialized, entering the main application loop.")
-    pass
+            while cap.isOpened():
+                gesture_ctrl = GestureControl()
+                ret, frame = cap.read()
+                if not ret:
+                    AppLogger.warning("Lost communication with video camera.")
+                    break
+
+                frame = cv2.flip(frame, 1)
+                frame = gesture_ctrl.process_frame(frame)
+
+                match gesture_ctrl.current_state:
+                    case GestureAction.NEXT_TRACK:
+                        spot.perform(spotify.SPOTIFY_NEXT_TRACK)
+                    case GestureAction.PREV_TRACK:
+                        spot.perform(spotify.SPOTIFY_PREV_TRACK)
+                    case GestureAction.PLAY_PAUSE:
+                        if spot.current:
+                            if spot.current['is_playing']:
+                                spot.perform(spotify.SPOTIFY_PAUSE_TRACK)
+                            else:
+                                spot.perform(spotify.SPOTIFY_RESUME_TRACK)
+
+                if bool(DBG_MODE):  # Reference window is only available in debug mode.
+                    cv2.imshow('Gesture Control', frame)
+
+            cap.release()
+            if bool(DBG_MODE):
+                cv2.destroyAllWindows()
+
+            AppLogger.error(f'Unable to access camera device. Retrying in {CAM_TIMEOUT} seconds.')
+            time.sleep(int(CAM_TIMEOUT))
+    except Exception as e:
+        AppLogger.fatal(f'UNRECOVERABLE: Unhandled error occured: {e}')
+    finally:
+        AppLogger.debug("Succesfully initialized, entering the main application loop.")

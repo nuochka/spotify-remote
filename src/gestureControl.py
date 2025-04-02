@@ -1,7 +1,12 @@
-import cv2
+""" 
+    File: gestureControl.py
+    Decs: Handles whole gesture control logic via mediapipe wrapper. 
+"""
+
 import mediapipe as mp
-import numpy as np
+import cv2
 import time
+
 from enum import Enum
 from log import AppLogger
 
@@ -15,17 +20,22 @@ class GestureAction(Enum):
     NONE = "none"
 
 class GestureControl:
-    def __init__(self, cooldown=2):
+    def __init__(self, action_cooldown=2, quick_action_cooldown=0.3):
         self.hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
+        self.quick_action_cooldown = quick_action_cooldown
+        self.action_cooldown = action_cooldown
         self.last_action_time = 0
-        self.cooldown = cooldown
         self.current_state = GestureAction.NONE
 
+    # Counts the amount of fingers seen on the screen.
     def count_fingers(self, hand_landmarks):
         finger_tips = [4, 8, 12, 16, 20]
         finger_folded = [hand_landmarks.landmark[i].y > hand_landmarks.landmark[i - 2].y for i in finger_tips]
         return finger_folded.count(False)
     
+    """ 
+        Processes the currently obtained frame from the video camera.
+    """
     def process_frame(self, frame):
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = self.hands.process(rgb_frame)
@@ -39,18 +49,14 @@ class GestureControl:
                 if current_time - self.last_action_time > self.cooldown:
                     if fingers == 1:
                         self.current_state = GestureAction.NEXT_TRACK
-                        AppLogger.info("Gesture detected: NEXT_TRACK")
+                        AppLogger.debug("Gesture detected: NEXT_TRACK")
                     elif fingers == 2:
                         self.current_state = GestureAction.PREV_TRACK
-                        AppLogger.info("Gesture detected: PREV_TRACK")
+                        AppLogger.debug("Gesture detected: PREV_TRACK")
                     elif fingers == 5:
                         self.current_state = GestureAction.PLAY_PAUSE
-                        AppLogger.info("Gesture detected: PLAY_PAUSE")
+                        AppLogger.debug("Gesture detected: PLAY_PAUSE")
                     else:
                         self.last_action_time = current_time
                         AppLogger.debug("No valid gesture detected.")
         return frame
-    
-    def current_state(self):
-        AppLogger.debug("Current state requested: %s", self.current_state.value)
-        return self.current_state
