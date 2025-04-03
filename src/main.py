@@ -28,12 +28,13 @@ if __name__ == "__main__":
 
 
     try:
-        cap = cv2.VideoCapture(0)
         spot = SpotifyHandler()
         gesture_ctrl = GestureControl()
 
         AppLogger.debug("Succesfully initialized, entering the main application loop.")
         while True:
+            cap = cv2.VideoCapture(0)
+
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
