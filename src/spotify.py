@@ -52,6 +52,7 @@ class SpotifyHandler:
             cache_path=self.CACHE_PATH,
         )
         self.sp = Spotify(auth_manager=self.oauth)
+        self.current = self.sp.current_playback()
 
     """ 
         Token refresh daemon thread. Will be run at background when new instance of 'SpotifyHandler' is
@@ -97,17 +98,17 @@ class SpotifyHandler:
             match e.http_status:
                 case 403:
                     if "PREMIUM_REQUIRED" in e.msg:
-                        AppLogger.warning("Premium only feature used on non-premium account. Ignoring...")
+                        AppLogger.error("Premium only feature used on non-premium account. Ignoring...")
                 case 429:   # Rate limit.
                     retry_after = e.headers["retry-after"]
-                    AppLogger.warning("Spotify API rate limit exceeded, retrying after {}s.")
+                    AppLogger.error("Spotify API rate limit exceeded, retrying after {}s.")
             
                     # Retry in 'retry_after' seconds in a different thread.
                     Thread(
                         target=lambda _: time.sleep(retry_after) or self.perform(f) 
                     ).start()
                 case _:     # Unhandled
-                    AppLogger.warning("Unhandled error. Ignoring...")
+                    AppLogger.error("Unhandled error. Ignoring...")
         except Exception as e:
             AppLogger.error(f'Unknown API error has occured: {e}. Unable to perform the task.')
 
