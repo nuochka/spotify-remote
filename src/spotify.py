@@ -78,7 +78,6 @@ class SpotifyHandler:
         Performs a spotify web API action with additional error handling.
     """
     def perform(self, f: SpotifyPerformer):
-        self.current = self.sp.current_playback()
 
         try:
             f_src = inspect.getsource(f).strip()
@@ -89,6 +88,7 @@ class SpotifyHandler:
         except Exception:
             f_src = f.__str__
 
+        self.current = self.sp.current_playback()
         try:
             AppLogger.info(f'Performing Spotify API action: {f_src}')
             f(self.sp)
@@ -97,8 +97,13 @@ class SpotifyHandler:
 
             match e.http_status:
                 case 403:
-                    if "PREMIUM_REQUIRED" in e.msg:
+                    if "PREMIUM_REQUIRED" in e.msg: # No features from this daemon can be accessed without premium.
                         AppLogger.error("Premium only feature used on non-premium account. Ignoring...")
+                    elif "RESTRICTION VIOLATED":    # Sending PLAY request when already playing or vice versa.
+                        AppLogger.warning("Wrong command sent to spotify player API.")
+                case 404:
+                    AppLogger.error("Spotify could not find proper active device. Reinitializing...")
+                    self.new()
                 case 429:   # Rate limit.
                     retry_after = e.headers["retry-after"]
                     AppLogger.error("Spotify API rate limit exceeded, retrying after {}s.")
