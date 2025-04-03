@@ -41,17 +41,19 @@ class GestureControl:
         Processes the currently obtained frame from the video camera.
     """
     def process_frame(self, frame, debug=True):
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         self.current_state = GestureAction.NONE
+        results = self.hands.process(rgb_frame)
         
-        current_time = time.time()
-        if current_time - self.last_action_time > self.action_cooldown:
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = self.hands.process(rgb_frame)
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                if debug:
+                    mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-            if results.multi_hand_landmarks:
-                for hand_landmarks in results.multi_hand_landmarks:
+                current_time = time.time()
+                if current_time - self.last_action_time > self.action_cooldown:
                     fingers = self.count_fingers(hand_landmarks)
-                    
+
                     self.last_action_time = current_time
                     if fingers == 5: # Checking this possibility first.
                         self.current_state = GestureAction.PLAY_PAUSE
@@ -63,6 +65,4 @@ class GestureControl:
                         self.current_state = GestureAction.PREV_TRACK
                         AppLogger.debug("Gesture detected: PREV_TRACK")
                     
-                    if debug:
-                        mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
         return frame
