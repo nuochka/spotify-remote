@@ -13,7 +13,6 @@ import inspect
 from log import AppLogger
 from spotipy import SpotifyOAuth, Spotify
 from spotipy.exceptions import SpotifyException
-from typing import Callable
 from threading import Thread
 
 class SpotifyHandler:
@@ -137,11 +136,9 @@ class SpotifyHandler:
         except Exception as e:
             AppLogger.error(f'Unknown API error has occured: {e}. Unable to perform the task.')
 
-""" Subset of lambda function with spotify class as an argument """
-SpotifyPerformer = Callable[[SpotifyHandler], None]
-
 # Basic predefined lambdas
-SPOTIFY_NEXT_TRACK: SpotifyPerformer    = lambda h: h.sp.next_track(h.playback_fallback_dev)
-SPOTIFY_PREV_TRACK: SpotifyPerformer    = lambda h: h.sp.previous_track(h.playback_fallback_dev)
-SPOTIFY_PAUSE_TRACK: SpotifyPerformer   = lambda h: h.sp.pause_playback(h.playback_fallback_dev)
-SPOTIFY_RESUME_TRACK: SpotifyPerformer  = lambda h: h.sp.start_playback(h.playback_fallback_dev)
+SPOTIFY_NEXT_TRACK      = lambda h: h.sp.next_track(h.playback_fallback_dev)
+SPOTIFY_PREV_TRACK      = lambda h: h.sp.previous_track(h.playback_fallback_dev)
+SPOTIFY_PAUSE_TRACK     = lambda h: h.sp.pause_playback(h.playback_fallback_dev)
+SPOTIFY_RESUME_TRACK    = lambda h: h.sp.start_playback(h.playback_fallback_dev)
+SPOTIFY_VOLUME_SET      = lambda h, v: h.sp.volume(v, h.playback_fallback_dev)
