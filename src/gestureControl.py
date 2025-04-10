@@ -17,7 +17,20 @@ class GestureAction(Enum):
     NEXT_TRACK = "next track"
     PREV_TRACK = "prev track"
     PLAY_PAUSE = "play/pause"
+    VOLUME_SET = "volume set"
     NONE = "none"
+
+    # Used to hold additional data with the state variant.
+    def __init__(self, value=None) -> None:
+        self._volume_set_value = value
+
+    @property
+    def volume(self):
+        return self._volume_set_value
+
+    @volume.setter
+    def volume_percentage(self, volume):
+        self._volume_percentage = volume
 
 class GestureControl:
     def __init__(self, action_cooldown=2, quick_action_cooldown=0.3):
@@ -28,41 +41,84 @@ class GestureControl:
 
         self.quick_action_cooldown = quick_action_cooldown
         self.action_cooldown = action_cooldown
-        self.last_action_time = 0
+
+        # Individual cooldown timestamps for different actions
+        self.last_play_pause_time = 0
+        self.last_next_track_time = 0
+        self.last_prev_track_time = 0
+        
         self.current_state = GestureAction.NONE
 
-    # Counts the amount of fingers seen on the screen.
+    '''
+        Counts the amount of fingers seen on the screen.
+    '''
     def count_fingers(self, hand_landmarks):
         finger_tips = [4, 8, 12, 16, 20]
         finger_folded = [hand_landmarks.landmark[i].y > hand_landmarks.landmark[i - 2].y for i in finger_tips]
         return finger_folded.count(False)
+
+    """
+        Detects if a full hand is being shown to the camera (all fingers open).
+    """
+    def detect_full_hand(self, hand_landmarks):
+        return self.count_fingers(hand_landmarks) == 5
+   
+    """
+        Detects the direction of the thumb for NEXT_TRACK and PREV_TRACK actions.
+    """
+    def detect_thumb_direction(self, hand_landmarks):
+        thumb_tip = hand_landmarks.landmark[4]
+        thumb_base = hand_landmarks.landmark[2]
     
+        thumb_vector_x = thumb_tip.x - thumb_base.x
+    
+        if thumb_vector_x > 0.1:
+            return GestureAction.NEXT_TRACK
+        elif thumb_vector_x < -0.1:
+            return GestureAction.PREV_TRACK
+        else:
+            return GestureAction.NONE
+
     """ 
         Processes the currently obtained frame from the video camera.
     """
     def process_frame(self, frame, debug=True):
+        """Process a frame to detect gestures and trigger actions."""
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         self.current_state = GestureAction.NONE
         results = self.hands.process(rgb_frame)
-        
+    
         if results.multi_hand_landmarks:
-            for hand_landmarks in results.multi_hand_landmarks:
-                if debug:
-                    mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-
-                current_time = time.time()
-                if current_time - self.last_action_time > self.action_cooldown:
-                    fingers = self.count_fingers(hand_landmarks)
-
-                    self.last_action_time = current_time
-                    if fingers == 5: # Checking this possibility first.
-                        self.current_state = GestureAction.PLAY_PAUSE
-                        AppLogger.debug("Gesture detected: PLAY_PAUSE")
-                    elif fingers == 1:
+            # Detecting first hand only to prevent collisions.
+            hand_landmarks = results.multi_hand_landmarks[0]
+    
+            if debug:
+                mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+    
+            current_time = time.time()
+             
+            # Detect Next/Prev track: Thumb pointing left or right, while other fingers are not seen.
+            gesture = self.detect_thumb_direction(hand_landmarks)
+            if gesture != GestureAction.NONE:
+                if gesture == GestureAction.NEXT_TRACK and (current_time - self.last_next_track_time) > self.action_cooldown:
+                    if self.count_fingers(hand_landmarks) < 2:  # Not a proper gesture when more fingers are seen.
+                        self.last_next_track_time = current_time
                         self.current_state = GestureAction.NEXT_TRACK
-                        AppLogger.debug("Gesture detected: NEXT_TRACK")
-                    elif fingers == 2:
+                        AppLogger.debug("Thumb gesture detected: NEXT_TRACK")
+                        return frame
+                
+                elif gesture == GestureAction.PREV_TRACK and (current_time - self.last_prev_track_time) > self.action_cooldown:
+                    if self.count_fingers(hand_landmarks) < 2:  # Not a proper gesture when more fingers are seen.
+                        self.last_prev_track_time = current_time
                         self.current_state = GestureAction.PREV_TRACK
-                        AppLogger.debug("Gesture detected: PREV_TRACK")
-                    
+                        AppLogger.debug("Thumb gesture detected: PREV_TRACK")
+                        return frame
+
+            # Detect Play/Pause gesture: Full hand open to camera
+            if self.detect_full_hand(hand_landmarks):
+                if current_time - self.last_play_pause_time > self.action_cooldown:
+                    self.last_play_pause_time = current_time
+                    self.current_state = GestureAction.PLAY_PAUSE
+                    AppLogger.debug("Gesture detected: PLAY_PAUSE") 
+    
         return frame
