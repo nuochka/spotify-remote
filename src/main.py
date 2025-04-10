@@ -55,6 +55,8 @@ if __name__ == "__main__":
                                 spot.perform(spotify.SPOTIFY_PAUSE_TRACK)
                             else:
                                 spot.perform(spotify.SPOTIFY_RESUME_TRACK)
+                    case GestureAction.VOLUME_SET:
+                        spot.perform(spotify.SPOTIFY_VOLUME_SET(spot, gesture_ctrl.current_state.volume))
 
                 if bool(DBG_MODE):  # Reference window is only available in debug mode.
                     cv2.imshow('Gesture Control', frame)
