@@ -1,12 +1,6 @@
-""" 
-    File: gestureControl.py
-    Decs: Handles whole gesture control logic via mediapipe wrapper. 
-"""
-
 import mediapipe as mp
 import cv2
 import time
-
 from enum import Enum
 from log import AppLogger
 
@@ -20,7 +14,6 @@ class GestureAction(Enum):
     VOLUME_SET = "volume set"
     NONE = "none"
 
-    # Used to hold additional data with the state variant.
     def __init__(self, value=None) -> None:
         self._volume_set_value = value
 
@@ -30,7 +23,7 @@ class GestureAction(Enum):
 
     @volume.setter
     def volume_percentage(self, volume):
-        self._volume_percentage = volume
+        self._volume_set_value = volume
 
 class GestureControl:
     def __init__(self, action_cooldown=2, quick_action_cooldown=0.3):
@@ -79,36 +72,48 @@ class GestureControl:
         else:
             return GestureAction.NONE
 
-    """ 
-        Processes the currently obtained frame from the video camera.
-    """
+    def calculate_distance(self, point1, point2):
+        # Calculate the Euclidean distance between two points
+        return ((point1.x - point2.x) ** 2 + (point1.y - point2.y) ** 2) ** 0.5
+
+    def detect_volume_gesture(self, hand_landmarks):
+        # Detect volume control gesture based on thumb and index finger distance
+        thumb_tip = hand_landmarks.landmark[4]
+        index_tip = hand_landmarks.landmark[8]
+        
+        # Calculate the distance between thumb and index fingers
+        distance = self.calculate_distance(thumb_tip, index_tip)
+        
+        # Normalize the distance for volume control (you can adjust the factor for sensitivity)
+        volume_percentage = min(100, int(distance * 200))  # Example scaling factor
+        
+        return volume_percentage
+
     def process_frame(self, frame, debug=True):
-        """Process a frame to detect gestures and trigger actions."""
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         self.current_state = GestureAction.NONE
         results = self.hands.process(rgb_frame)
     
         if results.multi_hand_landmarks:
-            # Detecting first hand only to prevent collisions.
             hand_landmarks = results.multi_hand_landmarks[0]
     
             if debug:
                 mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
     
             current_time = time.time()
-             
-            # Detect Next/Prev track: Thumb pointing left or right, while other fingers are not seen.
+
+            # Detect Next/Prev track
             gesture = self.detect_thumb_direction(hand_landmarks)
             if gesture != GestureAction.NONE:
                 if gesture == GestureAction.NEXT_TRACK and (current_time - self.last_next_track_time) > self.action_cooldown:
-                    if self.count_fingers(hand_landmarks) < 2:  # Not a proper gesture when more fingers are seen.
+                    if self.count_fingers(hand_landmarks) < 2:
                         self.last_next_track_time = current_time
                         self.current_state = GestureAction.NEXT_TRACK
                         AppLogger.debug("Thumb gesture detected: NEXT_TRACK")
                         return frame
                 
                 elif gesture == GestureAction.PREV_TRACK and (current_time - self.last_prev_track_time) > self.action_cooldown:
-                    if self.count_fingers(hand_landmarks) < 2:  # Not a proper gesture when more fingers are seen.
+                    if self.count_fingers(hand_landmarks) < 2:
                         self.last_prev_track_time = current_time
                         self.current_state = GestureAction.PREV_TRACK
                         AppLogger.debug("Thumb gesture detected: PREV_TRACK")
@@ -119,6 +124,21 @@ class GestureControl:
                 if current_time - self.last_play_pause_time > self.action_cooldown:
                     self.last_play_pause_time = current_time
                     self.current_state = GestureAction.PLAY_PAUSE
-                    AppLogger.debug("Gesture detected: PLAY_PAUSE") 
-    
+                    AppLogger.debug("Gesture detected: PLAY_PAUSE")
+                    return frame
+
+            # Detect Volume control gesture: Based on the distance between thumb and index finger
+            volume_percentage = self.detect_volume_gesture(hand_landmarks)
+            if current_time - self.last_volume_set_time > self.quick_action_cooldown:
+                # Only update the volume if no other gesture (track or play/pause) is being processed
+                if self.current_state == GestureAction.NONE or self.current_state == GestureAction.VOLUME_SET:
+                    # Only update the volume if it is different from the current state
+                    if volume_percentage != self.current_state.volume:
+                        self.last_volume_set_time = current_time
+                        # Set the volume correctly using the setter
+                        self.current_state = GestureAction.VOLUME_SET
+                        self.current_state.volume_percentage = volume_percentage  # Correctly set volume
+
+                        AppLogger.debug(f"Volume gesture detected: {volume_percentage}%")
+
         return frame
