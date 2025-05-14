@@ -26,19 +26,21 @@ class GestureAction(Enum):
         self._volume_set_value = volume
 
 class GestureControl:
-    def __init__(self, action_cooldown=2, quick_action_cooldown=0.3):
+    def __init__(self, action_cooldown=2, quick_action_cooldown=0.3, volume_cooldown=1.0):
         self.hands = mp_hands.Hands(
             min_detection_confidence=0.7,
             min_tracking_confidence=0.7
         )
 
-        self.quick_action_cooldown = quick_action_cooldown
-        self.action_cooldown = action_cooldown
+        self.quick_action_cooldown = quick_action_cooldown  # for frequent actions like volume control
+        self.action_cooldown = action_cooldown  # for less frequent actions like track change, play/pause
+        self.volume_cooldown = volume_cooldown  # additional cooldown for volume control
 
         # Individual cooldown timestamps for different actions
         self.last_play_pause_time = 0
         self.last_next_track_time = 0
         self.last_prev_track_time = 0
+        self.last_volume_set_time = 0
         
         self.current_state = GestureAction.NONE
 
@@ -76,13 +78,16 @@ class GestureControl:
         # Calculate the Euclidean distance between two points
         return ((point1.x - point2.x) ** 2 + (point1.y - point2.y) ** 2) ** 0.5
 
+    """
+        Detects volume control gesture based on the distance between the thumb and pinky.
+    """
     def detect_volume_gesture(self, hand_landmarks):
-        # Detect volume control gesture based on thumb and index finger distance
+        # Detect volume control gesture based on thumb and pinky distance
         thumb_tip = hand_landmarks.landmark[4]
-        index_tip = hand_landmarks.landmark[8]
+        pinky_tip = hand_landmarks.landmark[20]
         
-        # Calculate the distance between thumb and index fingers
-        distance = self.calculate_distance(thumb_tip, index_tip)
+        # Calculate the distance between thumb and pinky
+        distance = self.calculate_distance(thumb_tip, pinky_tip)
         
         # Normalize the distance for volume control (you can adjust the factor for sensitivity)
         volume_percentage = min(100, int(distance * 200))  # Example scaling factor
@@ -127,9 +132,9 @@ class GestureControl:
                     AppLogger.debug("Gesture detected: PLAY_PAUSE")
                     return frame
 
-            # Detect Volume control gesture: Based on the distance between thumb and index finger
+            # Detect Volume control gesture: Based on the distance between thumb and pinky
             volume_percentage = self.detect_volume_gesture(hand_landmarks)
-            if current_time - self.last_volume_set_time > self.quick_action_cooldown:
+            if current_time - self.last_volume_set_time > self.volume_cooldown:
                 # Only update the volume if no other gesture (track or play/pause) is being processed
                 if self.current_state == GestureAction.NONE or self.current_state == GestureAction.VOLUME_SET:
                     # Only update the volume if it is different from the current state
