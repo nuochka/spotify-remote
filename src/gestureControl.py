@@ -142,7 +142,7 @@ class GestureControl:
                         self.last_volume_set_time = current_time
                         # Set the volume correctly using the setter
                         self.current_state = GestureAction.VOLUME_SET
-                        self.current_state.volume_percentage = volume_percentage  # Correctly set volume
+                        self.current_state.volume_percentage = volume_percentage
 
                         AppLogger.debug(f"Volume gesture detected: {volume_percentage}%")
 
