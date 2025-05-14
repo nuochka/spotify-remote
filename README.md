@@ -90,7 +90,7 @@ The following gestures are supported (gesture detection may vary based on lighti
 | Open Palm        | Play / Pause      | Hold your open hand up, palm facing the camera.                                        |
 | Thumb Left       | Previous Track    | Point your thumb clearly to the left with a closed fist.                               |
 | Thumb Right      | Next Track        | Point your thumb clearly to the right with a closed fist.                              |
-| Pinch Gesture    | Volume Control    | Show your thumb and index finger—volume is based on the distance between the two tips.
+| Pinch Gesture    | Volume Control    | Pinch your thumb and pinky together—volume is adjusted based on the distance between the tips of these two fingers. The farther apart the fingers, the higher the volume.
 
 
 > 🧪 You can enable `SPOTIFY_REMOTE_DEBUG_MODE` to help visualize gesture tracking and calibrate movements.
